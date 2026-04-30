@@ -105,6 +105,15 @@ public abstract class Tank extends Entity {
         speed = baseMoveSpeed * speedMultiplier;
     }
 
+    public void setHealth(int health) {
+        this.health = Math.max(0, Math.min(maxHealth, health));
+    }
+
+    public void applyNetworkState(double x, double y, double rotation) {
+        this.position = new Vector2(x, y);
+        this.rotation = rotation;
+    }
+
     public double getSpeed() {
         return speed;
     }

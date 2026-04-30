@@ -24,6 +24,8 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import com.futura.game.network.NetworkManager;
+import com.futura.game.network.NetworkMessage;
 
 public class GamePanel extends JPanel implements Runnable {
     private static final Vector2 PLAYER_SPAWN = new Vector2(120, 120);
@@ -42,11 +44,13 @@ public class GamePanel extends JPanel implements Runnable {
     private final Dragon dragon;
     private final List<DragonFireball> dragonFireballs;
 
+    private final NetworkManager networkManager;
+
     private GameState gameState;
     private Thread gameThread;
     private boolean restartKeyWasDown;
 
-    public GamePanel(MapType mapType) {
+    public GamePanel(MapType mapType, NetworkManager networkManager) {
         setPreferredSize(new Dimension(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT));
         setFocusable(true);
 
@@ -60,6 +64,7 @@ public class GamePanel extends JPanel implements Runnable {
         this.aiProjectiles = new ArrayList<>();
         this.dragon = new Dragon(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT);
         this.dragonFireballs = new ArrayList<>();
+        this.networkManager = networkManager;
         this.gameState = GameState.RUNNING;
         this.restartKeyWasDown = false;
     }
@@ -101,6 +106,14 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
 
+        if (networkManager != null) {
+            updateMultiplayer(deltaTime);
+        } else {
+            updateSinglePlayer(deltaTime);
+        }
+    }
+
+    private void updateSinglePlayer(double deltaTime) {
         playerTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(playerTank.getPosition())
                 ? GameConfig.SLOW_MULTIPLIER : 1.0);
         aiTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(aiTank.getPosition())
@@ -122,6 +135,123 @@ public class GamePanel extends JPanel implements Runnable {
         dragon.update(deltaTime);
         dragonFireballs.addAll(dragon.tryFire(playerTank.getPosition(), aiTank.getPosition()));
         updateDragonFireballs();
+    }
+
+    private void updateMultiplayer(double deltaTime) {
+        for (NetworkMessage msg : networkManager.pollMessages()) {
+            handleNetworkMessage(msg);
+        }
+        if (gameState != GameState.RUNNING) {
+            return;
+        }
+
+        playerTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(playerTank.getPosition())
+                ? GameConfig.SLOW_MULTIPLIER : 1.0);
+
+        Projectile playerShot = playerTank.updateAndTryShoot(deltaTime, inputHandler, arenaMap, aiTank);
+        if (playerShot != null) {
+            playerProjectiles.add(playerShot);
+            networkManager.sendShot(
+                    playerShot.getPosition().x(),
+                    playerShot.getPosition().y(),
+                    playerShot.getRotation());
+        }
+
+        updatePlayerProjectilesNetwork();
+        updateRemoteProjectilesCosmetic();
+
+        dragon.update(deltaTime);
+        dragonFireballs.addAll(dragon.tryFire(playerTank.getPosition(), aiTank.getPosition()));
+        updateDragonFireballsMultiplayer();
+
+        networkManager.sendPosition(
+                playerTank.getPosition().x(),
+                playerTank.getPosition().y(),
+                playerTank.getRotation());
+    }
+
+    private void handleNetworkMessage(NetworkMessage msg) {
+        switch (msg.type()) {
+            case POS -> aiTank.applyNetworkState(msg.data()[0], msg.data()[1], msg.data()[2]);
+            case SHOT -> {
+                Vector2 muzzle = new Vector2(msg.data()[0], msg.data()[1]);
+                double rot = msg.data()[2];
+                Vector2 vel = Vector2.fromAngle(rot).scale(GameConfig.PROJECTILE_SPEED);
+                aiProjectiles.add(new Projectile(muzzle, rot, vel, 4.0, GameConfig.PROJECTILE_LIFETIME_SECONDS));
+            }
+            case HIT -> {
+                boolean destroyed = playerTank.applyHit();
+                networkManager.sendHealth(playerTank.getHealth());
+                if (destroyed) {
+                    networkManager.sendDead();
+                    gameState = GameState.AI_WON;
+                }
+            }
+            case HEALTH -> aiTank.setHealth((int) msg.data()[0]);
+            case DEAD -> gameState = GameState.PLAYER_WON;
+            case RESTART -> resetRound(false);
+            default -> {}
+        }
+    }
+
+    private void updatePlayerProjectilesNetwork() {
+        Iterator<Projectile> iterator = playerProjectiles.iterator();
+        while (iterator.hasNext()) {
+            Projectile proj = iterator.next();
+            proj.update(GameConfig.DELTA_TIME);
+
+            Vector2 pos = proj.getPosition();
+            if (proj.isExpired()
+                    || !arenaMap.isInsideBounds(pos.x(), pos.y(), proj.getRadius())
+                    || arenaMap.collidesWithObstacle(pos.x(), pos.y(), proj.getRadius())) {
+                iterator.remove();
+                continue;
+            }
+
+            if (Vector2.distance(pos, aiTank.getPosition()) <= proj.getRadius() + aiTank.getRadius()) {
+                networkManager.sendHit();
+                iterator.remove();
+            }
+        }
+    }
+
+    private void updateRemoteProjectilesCosmetic() {
+        Iterator<Projectile> iterator = aiProjectiles.iterator();
+        while (iterator.hasNext()) {
+            Projectile proj = iterator.next();
+            proj.update(GameConfig.DELTA_TIME);
+            Vector2 pos = proj.getPosition();
+            if (proj.isExpired()
+                    || !arenaMap.isInsideBounds(pos.x(), pos.y(), proj.getRadius())
+                    || arenaMap.collidesWithObstacle(pos.x(), pos.y(), proj.getRadius())) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private void updateDragonFireballsMultiplayer() {
+        Iterator<DragonFireball> it = dragonFireballs.iterator();
+        while (it.hasNext()) {
+            DragonFireball bomb = it.next();
+            bomb.update(GameConfig.DELTA_TIME);
+            if (bomb.isDone()) {
+                it.remove();
+                continue;
+            }
+            if (bomb.shouldApplyDamage()) {
+                bomb.markDamageApplied();
+                Vector2 blast = bomb.getTargetPosition();
+                double radius = bomb.getExplosionRadius();
+                if (Vector2.distance(blast, playerTank.getPosition()) <= radius + playerTank.getRadius()) {
+                    boolean destroyed = playerTank.applyHit();
+                    networkManager.sendHealth(playerTank.getHealth());
+                    if (destroyed) {
+                        networkManager.sendDead();
+                        gameState = GameState.AI_WON;
+                    }
+                }
+            }
+        }
     }
 
     private void updateDragonFireballs() {
@@ -170,6 +300,13 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void resetRound() {
+        resetRound(true);
+    }
+
+    private void resetRound(boolean sendNetworkMessage) {
+        if (sendNetworkMessage && networkManager != null) {
+            networkManager.sendRestart();
+        }
         playerTank.reset(PLAYER_SPAWN, PLAYER_SPAWN_ROTATION);
         aiTank.reset(AI_SPAWN, AI_SPAWN_ROTATION);
         playerProjectiles.clear();
@@ -238,7 +375,7 @@ public class GamePanel extends JPanel implements Runnable {
         boolean aiSlowed = arenaMap.isInsideSlowZone(aiTank.getPosition());
 
         g2d.setColor(new Color(25, 25, 25, 170));
-        g2d.fillRoundRect(14, 12, 420, 172, 12, 12);
+        g2d.fillRoundRect(14, 12, 420, networkManager != null ? 196 : 172, 12, 12);
 
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
@@ -252,7 +389,18 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.drawString("Map: " + arenaMap.getMapName(), 24, 118);
 
         drawHealthBar(g2d, 24, 132, "Player HP", playerTank.getHealth(), playerTank.getMaxHealth(), new Color(56, 120, 210));
-        drawHealthBar(g2d, 224, 132, "AI HP", aiTank.getHealth(), aiTank.getMaxHealth(), new Color(212, 84, 66));
+        String opponentLabel = networkManager != null ? "Opponent HP" : "AI HP";
+        drawHealthBar(g2d, 224, 132, opponentLabel, aiTank.getHealth(), aiTank.getMaxHealth(), new Color(212, 84, 66));
+
+        if (networkManager != null) {
+            boolean connected = networkManager.isConnected();
+            g2d.setColor(connected ? new Color(80, 210, 80) : new Color(220, 70, 70));
+            g2d.setFont(new Font("SansSerif", Font.BOLD, 13));
+            g2d.drawString("Multiplayer: " + (connected ? "Connected" : "Disconnected"), 24, 168);
+            g2d.setColor(new Color(180, 180, 180));
+            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            g2d.drawString("You = Blue   Opponent = Red", 24, 185);
+        }
 
         if (gameState == GameState.PLAYER_WON) {
             drawCenterMessage(g2d, "Player Wins");
