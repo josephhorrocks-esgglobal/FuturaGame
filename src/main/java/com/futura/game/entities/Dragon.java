@@ -151,59 +151,53 @@ public class Dragon {
         dg.translate((int) Math.round(position.x()), (int) Math.round(position.y()));
         dg.rotate(angle);
 
-        // Drop shadow
-        dg.setColor(new Color(0, 0, 0, 55));
-        dg.fillOval(-28, -6, 56, 18);
+        dg.setColor(new Color(0, 0, 0, 60));
+        dg.fillOval(-34, -8, 68, 22);
 
-        // Wings (bat-style, folded back from body centre)
-        dg.setColor(new Color(105, 30, 0, 215));
+        dg.setColor(new Color(123, 62, 194, 210));
         dg.fillPolygon(
-                new int[]{8, -12, -38, -14},
-                new int[]{-8, -44, -20, -8},
-                4);
+            new int[]{4, -20, -52, -18},
+            new int[]{-10, -52, -22, -7},
+            4);
         dg.fillPolygon(
-                new int[]{8, -12, -38, -14},
-                new int[]{8, 44, 20, 8},
-                4);
+            new int[]{4, -20, -52, -18},
+            new int[]{10, 52, 22, 7},
+            4);
 
-        // Wing edge highlight
-        dg.setColor(new Color(160, 55, 0, 130));
+        dg.setColor(new Color(192, 142, 245, 120));
         dg.drawPolygon(
-                new int[]{8, -12, -38, -14},
-                new int[]{-8, -44, -20, -8},
-                4);
+            new int[]{4, -20, -52, -18},
+            new int[]{-10, -52, -22, -7},
+            4);
         dg.drawPolygon(
-                new int[]{8, -12, -38, -14},
-                new int[]{8, 44, 20, 8},
-                4);
+            new int[]{4, -20, -52, -18},
+            new int[]{10, 52, 22, 7},
+            4);
 
-        // Body
-        dg.setColor(new Color(38, 108, 28));
-        dg.fillRoundRect(-28, -10, 54, 20, 12, 12);
+        dg.setColor(new Color(88, 188, 118));
+        dg.fillRoundRect(-30, -11, 58, 22, 15, 15);
+        dg.setColor(new Color(129, 226, 157, 95));
+        dg.fillRoundRect(-24, -8, 38, 8, 8, 8);
 
-        // Head
-        dg.setColor(new Color(50, 128, 35));
-        dg.fillOval(20, -10, 22, 20);
+        dg.setColor(new Color(103, 206, 136));
+        dg.fillOval(20, -11, 24, 22);
 
-        // Eye
-        dg.setColor(new Color(250, 215, 0));
-        dg.fillOval(30, -5, 8, 8);
+        dg.setColor(new Color(255, 245, 170));
+        dg.fillOval(30, -5, 9, 9);
         dg.setColor(Color.BLACK);
-        dg.fillOval(32, -3, 5, 5);
+        dg.fillOval(33, -2, 4, 4);
 
-        // Tail
-        dg.setColor(new Color(30, 90, 22));
+        dg.setColor(new Color(56, 160, 96));
         dg.fillPolygon(
-                new int[]{-22, -22, -44},
-                new int[]{-6, 6, 0},
-                3);
+            new int[]{-24, -24, -48},
+            new int[]{-6, 6, 0},
+            3);
 
-        // Fire breath glow when actively breathing
         if (fireBreathTimer > 0.0) {
-            dg.setColor(new Color(255, 130, 0, 190));
-            dg.fillOval(36, -7, 22, 14);
-            dg.setColor(new Color(255, 230, 80, 160));
-            dg.fillOval(42, -4, 12, 8);
+            dg.setColor(new Color(255, 138, 52, 210));
+            dg.fillOval(36, -8, 24, 16);
+            dg.setColor(new Color(255, 236, 132, 180));
+            dg.fillOval(43, -4, 13, 9);
         }
 
         dg.dispose();

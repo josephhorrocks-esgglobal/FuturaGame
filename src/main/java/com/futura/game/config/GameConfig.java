@@ -29,6 +29,7 @@ public final class GameConfig {
 
     public static final double DRAGON_MIN_SPAWN_SECONDS = 10.0;
     public static final double DRAGON_MAX_SPAWN_SECONDS = 20.0;
+    public static final double DRAGON_SIREN_WARNING_SECONDS = 20.0;
     public static final double DRAGON_SPEED = 230.0;
     public static final double DRAGON_FIRE_RANGE = 520.0;
     public static final double DRAGON_CORNER_SAFE_SIZE = 115.0;

@@ -139,34 +139,52 @@ public abstract class Tank extends Entity {
         tankGraphics.translate(position.x(), position.y());
         tankGraphics.rotate(rotation);
 
-        int hullSize = (int) Math.round(radius * 2.0);
-        int halfHull = hullSize / 2;
-        int treadWidth = 5;
-        int cornerArc = 6;
+        int hullWidth = (int) Math.round(radius * 2.35);
+        int hullHeight = (int) Math.round(radius * 1.8);
+        int halfHullWidth = hullWidth / 2;
+        int halfHullHeight = hullHeight / 2;
+        int treadWidth = 7;
 
-        tankGraphics.setColor(new Color(34, 34, 34));
-        tankGraphics.fillRoundRect(-halfHull - treadWidth, -halfHull + 2, treadWidth, hullSize - 4, 4, 4);
-        tankGraphics.fillRoundRect(halfHull, -halfHull + 2, treadWidth, hullSize - 4, 4, 4);
+        tankGraphics.setColor(new Color(28, 34, 38));
+        tankGraphics.fillRoundRect(-halfHullWidth - treadWidth, -halfHullHeight + 2, treadWidth, hullHeight - 4, 7, 7);
+        tankGraphics.fillRoundRect(halfHullWidth, -halfHullHeight + 2, treadWidth, hullHeight - 4, 7, 7);
+
+        tankGraphics.setColor(new Color(82, 90, 96));
+        for (int i = -halfHullHeight + 5; i < halfHullHeight - 2; i += 6) {
+            tankGraphics.fillRect(-halfHullWidth - treadWidth + 1, i, treadWidth - 2, 3);
+            tankGraphics.fillRect(halfHullWidth + 1, i, treadWidth - 2, 3);
+        }
 
         tankGraphics.setColor(bodyColor);
-        tankGraphics.fillRoundRect(-halfHull, -halfHull, hullSize, hullSize, cornerArc, cornerArc);
+        tankGraphics.fillRoundRect(-halfHullWidth, -halfHullHeight, hullWidth, hullHeight, 16, 16);
 
         tankGraphics.setColor(bodyColor.darker());
-        tankGraphics.drawRoundRect(-halfHull, -halfHull, hullSize, hullSize, cornerArc, cornerArc);
+        tankGraphics.setStroke(new BasicStroke(2.0f));
+        tankGraphics.drawRoundRect(-halfHullWidth, -halfHullHeight, hullWidth, hullHeight, 16, 16);
 
-        int turretSize = (int) Math.round(radius * 1.1);
+        tankGraphics.setColor(new Color(255, 255, 255, 80));
+        tankGraphics.fillRoundRect(-halfHullWidth + 4, -halfHullHeight + 3, hullWidth - 10, 8, 8, 8);
+
+        int turretSize = (int) Math.round(radius * 1.25);
         int halfTurret = turretSize / 2;
-        tankGraphics.setColor(new Color(58, 58, 58));
+        tankGraphics.setColor(bodyColor.darker().darker());
         tankGraphics.fillOval(-halfTurret, -halfTurret, turretSize, turretSize);
 
-        tankGraphics.setColor(new Color(28, 28, 28));
-        tankGraphics.setStroke(new BasicStroke(5.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        tankGraphics.setColor(new Color(240, 240, 240, 120));
+        tankGraphics.fillOval(-halfTurret + 3, -halfTurret + 2, turretSize / 2, turretSize / 2);
+
+        tankGraphics.setColor(new Color(44, 44, 44));
+        tankGraphics.setStroke(new BasicStroke(7.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         int barrelStart = halfTurret - 1;
-        int barrelEnd = halfHull + 12;
+        int barrelEnd = halfHullWidth + 14;
         tankGraphics.drawLine(barrelStart, 0, barrelEnd, 0);
 
-        tankGraphics.setColor(new Color(220, 220, 220, 160));
-        tankGraphics.fillOval(-halfTurret + 4, -halfTurret + 3, turretSize / 3, turretSize / 3);
+        tankGraphics.setColor(new Color(120, 120, 120));
+        tankGraphics.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        tankGraphics.drawLine(barrelStart + 1, 0, barrelEnd - 2, 0);
+
+        tankGraphics.setColor(new Color(30, 30, 30, 140));
+        tankGraphics.fillOval(-4, -4, 8, 8);
 
         tankGraphics.setTransform(oldTransform);
         tankGraphics.dispose();

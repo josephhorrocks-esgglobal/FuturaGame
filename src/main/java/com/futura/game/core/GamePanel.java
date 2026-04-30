@@ -1,11 +1,14 @@
 package com.futura.game.core;
 
+import com.futura.game.audio.SirenPlayer;
 import com.futura.game.config.GameConfig;
 import com.futura.game.entities.AITank;
+import com.futura.game.entities.Cloud;
 import com.futura.game.entities.Dragon;
 import com.futura.game.entities.DragonFireball;
 import com.futura.game.entities.PlayerTank;
 import com.futura.game.entities.Projectile;
+import com.futura.game.entities.Rabbit;
 import com.futura.game.entities.Tank;
 import com.futura.game.input.InputHandler;
 import com.futura.game.math.Vector2;
@@ -24,6 +27,7 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import com.futura.game.network.NetworkManager;
 import com.futura.game.network.NetworkMessage;
 
@@ -43,12 +47,16 @@ public class GamePanel extends JPanel implements Runnable {
 
     private final Dragon dragon;
     private final List<DragonFireball> dragonFireballs;
+    private final List<Rabbit> rabbits;
+    private final List<Cloud> clouds;
 
     private final NetworkManager networkManager;
 
     private GameState gameState;
     private Thread gameThread;
     private boolean restartKeyWasDown;
+    private boolean dragonWarningSirenPlayed;
+    private boolean dragonWasFlying;
 
     public GamePanel(MapType mapType, NetworkManager networkManager) {
         setPreferredSize(new Dimension(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT));
@@ -64,9 +72,31 @@ public class GamePanel extends JPanel implements Runnable {
         this.aiProjectiles = new ArrayList<>();
         this.dragon = new Dragon(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT);
         this.dragonFireballs = new ArrayList<>();
+        this.rabbits = buildRabbits();
+        this.clouds = buildClouds();
         this.networkManager = networkManager;
         this.gameState = GameState.RUNNING;
         this.restartKeyWasDown = false;
+        this.dragonWarningSirenPlayed = false;
+        this.dragonWasFlying = false;
+    }
+
+    private List<Rabbit> buildRabbits() {
+        List<Rabbit> rabbitList = new ArrayList<>();
+        Random random = new Random();
+        for (int i = 0; i < 5; i++) {
+            rabbitList.add(new Rabbit(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT, arenaMap, random));
+        }
+        return rabbitList;
+    }
+
+    private List<Cloud> buildClouds() {
+        List<Cloud> cloudList = new ArrayList<>();
+        Random random = new Random();
+        for (int i = 0; i < 4; i++) {
+            cloudList.add(new Cloud(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT, random));
+        }
+        return cloudList;
     }
 
     public void startGame() {
@@ -114,6 +144,10 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void updateSinglePlayer(double deltaTime) {
+        arenaMap.update(deltaTime);
+        updateRabbits(deltaTime);
+        updateClouds(deltaTime);
+
         playerTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(playerTank.getPosition())
                 ? GameConfig.SLOW_MULTIPLIER : 1.0);
         aiTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(aiTank.getPosition())
@@ -133,11 +167,16 @@ public class GamePanel extends JPanel implements Runnable {
         updateProjectiles(aiProjectiles, playerTank);
 
         dragon.update(deltaTime);
+        updateDragonWarningSiren();
         dragonFireballs.addAll(dragon.tryFire(playerTank.getPosition(), aiTank.getPosition()));
         updateDragonFireballs();
     }
 
     private void updateMultiplayer(double deltaTime) {
+        arenaMap.update(deltaTime);
+        updateRabbits(deltaTime);
+        updateClouds(deltaTime);
+
         for (NetworkMessage msg : networkManager.pollMessages()) {
             handleNetworkMessage(msg);
         }
@@ -161,6 +200,7 @@ public class GamePanel extends JPanel implements Runnable {
         updateRemoteProjectilesCosmetic();
 
         dragon.update(deltaTime);
+        updateDragonWarningSiren();
         dragonFireballs.addAll(dragon.tryFire(playerTank.getPosition(), aiTank.getPosition()));
         updateDragonFireballsMultiplayer();
 
@@ -204,6 +244,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (proj.isExpired()
                     || !arenaMap.isInsideBounds(pos.x(), pos.y(), proj.getRadius())
                     || arenaMap.collidesWithObstacle(pos.x(), pos.y(), proj.getRadius())) {
+                arenaMap.registerObstacleHit(pos.x(), pos.y(), proj.getRadius());
                 iterator.remove();
                 continue;
             }
@@ -224,6 +265,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (proj.isExpired()
                     || !arenaMap.isInsideBounds(pos.x(), pos.y(), proj.getRadius())
                     || arenaMap.collidesWithObstacle(pos.x(), pos.y(), proj.getRadius())) {
+                arenaMap.registerObstacleHit(pos.x(), pos.y(), proj.getRadius());
                 iterator.remove();
             }
         }
@@ -314,6 +356,36 @@ public class GamePanel extends JPanel implements Runnable {
         dragon.reset();
         dragonFireballs.clear();
         gameState = GameState.RUNNING;
+        dragonWarningSirenPlayed = false;
+        dragonWasFlying = false;
+    }
+
+    private void updateRabbits(double deltaTime) {
+        for (Rabbit rabbit : rabbits) {
+            rabbit.update(deltaTime, arenaMap);
+        }
+    }
+
+    private void updateClouds(double deltaTime) {
+        for (Cloud cloud : clouds) {
+            cloud.update(deltaTime);
+        }
+    }
+
+    private void updateDragonWarningSiren() {
+        boolean flyingNow = dragon.isFlying();
+        if (dragonWasFlying && !flyingNow) {
+            dragonWarningSirenPlayed = false;
+        }
+
+        if (!flyingNow
+                && !dragonWarningSirenPlayed
+                && dragon.getSpawnTimerRemaining() <= GameConfig.DRAGON_SIREN_WARNING_SECONDS) {
+            SirenPlayer.playWarningAsync();
+            dragonWarningSirenPlayed = true;
+        }
+
+        dragonWasFlying = flyingNow;
     }
 
     private void updateProjectiles(List<Projectile> projectiles, Tank target) {
@@ -326,6 +398,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (projectile.isExpired()
                     || !arenaMap.isInsideBounds(pos.x(), pos.y(), projectile.getRadius())
                     || arenaMap.collidesWithObstacle(pos.x(), pos.y(), projectile.getRadius())) {
+                arenaMap.registerObstacleHit(pos.x(), pos.y(), projectile.getRadius());
                 iterator.remove();
                 continue;
             }
@@ -348,7 +421,13 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         arenaMap.render(g2d);
+        for (Cloud cloud : clouds) {
+            cloud.render(g2d);
+        }
         drawCornerZones(g2d);
+        for (Rabbit rabbit : rabbits) {
+            rabbit.render(g2d);
+        }
         playerTank.render(g2d);
         aiTank.render(g2d);
 
@@ -373,34 +452,35 @@ public class GamePanel extends JPanel implements Runnable {
     private void drawHud(Graphics2D g2d) {
         boolean playerSlowed = arenaMap.isInsideSlowZone(playerTank.getPosition());
         boolean aiSlowed = arenaMap.isInsideSlowZone(aiTank.getPosition());
+        int healthBarY = GameConfig.WINDOW_HEIGHT - (int) Math.round(GameConfig.WINDOW_HEIGHT * 0.10);
 
         g2d.setColor(new Color(25, 25, 25, 170));
         g2d.fillRoundRect(14, 12, 420, networkManager != null ? 196 : 172, 12, 12);
 
         g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
-        g2d.drawString("W/S: move  A/D: rotate  SPACE: shoot", 24, 35);
+        g2d.setFont(militaryFont(Font.BOLD, 14));
+        g2d.drawString("W/S: MOVE  A/D: ROTATE  SPACE: FIRE", 24, 35);
 
-        g2d.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        g2d.drawString("Player slowed: " + (playerSlowed ? "YES" : "NO"), 24, 58);
-        g2d.drawString("AI slowed: " + (aiSlowed ? "YES" : "NO"), 24, 78);
+        g2d.setFont(militaryFont(Font.PLAIN, 14));
+        g2d.drawString("PLAYER SLOWED: " + (playerSlowed ? "YES" : "NO"), 24, 58);
+        g2d.drawString("AI SLOWED: " + (aiSlowed ? "YES" : "NO"), 24, 78);
 
-        g2d.drawString("Static slow patches: " + arenaMap.getSlowPatchCount(), 24, 98);
-        g2d.drawString("Map: " + arenaMap.getMapName(), 24, 118);
-
-        drawHealthBar(g2d, 24, 132, "Player HP", playerTank.getHealth(), playerTank.getMaxHealth(), new Color(56, 120, 210));
-        String opponentLabel = networkManager != null ? "Opponent HP" : "AI HP";
-        drawHealthBar(g2d, 224, 132, opponentLabel, aiTank.getHealth(), aiTank.getMaxHealth(), new Color(212, 84, 66));
+        g2d.drawString("STATIC SLOW PATCHES: " + arenaMap.getSlowPatchCount(), 24, 98);
+        g2d.drawString("MAP: " + arenaMap.getMapName().toUpperCase(), 24, 118);
 
         if (networkManager != null) {
             boolean connected = networkManager.isConnected();
             g2d.setColor(connected ? new Color(80, 210, 80) : new Color(220, 70, 70));
-            g2d.setFont(new Font("SansSerif", Font.BOLD, 13));
-            g2d.drawString("Multiplayer: " + (connected ? "Connected" : "Disconnected"), 24, 168);
+            g2d.setFont(militaryFont(Font.BOLD, 13));
+            g2d.drawString("MULTIPLAYER: " + (connected ? "CONNECTED" : "DISCONNECTED"), 24, 168);
             g2d.setColor(new Color(180, 180, 180));
-            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
-            g2d.drawString("You = Blue   Opponent = Red", 24, 185);
+            g2d.setFont(militaryFont(Font.PLAIN, 12));
+            g2d.drawString("YOU = BLUE   OPPONENT = RED", 24, 185);
         }
+
+        drawHealthBar(g2d, 24, healthBarY, "Player 1 HP", playerTank.getHealth(), playerTank.getMaxHealth(), new Color(56, 120, 210));
+        String opponentLabel = networkManager != null ? "Opponent HP" : "AI HP";
+        drawHealthBar(g2d, GameConfig.WINDOW_WIDTH - 194, healthBarY, opponentLabel, aiTank.getHealth(), aiTank.getMaxHealth(), new Color(212, 84, 66));
 
         if (gameState == GameState.PLAYER_WON) {
             drawCenterMessage(g2d, "Player Wins");
@@ -437,21 +517,21 @@ public class GamePanel extends JPanel implements Runnable {
 
         if (dragon.isFlying()) {
             g2d.setColor(new Color(255, 100, 0));
-            g2d.setFont(new Font("SansSerif", Font.BOLD, 15));
+            g2d.setFont(militaryFont(Font.BOLD, 15));
             g2d.drawString("DRAGON INCOMING!", boxX + 12, 36);
             g2d.setColor(new Color(200, 200, 200));
-            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
-            g2d.drawString("Hide in the green corners!", boxX + 12, 55);
+            g2d.setFont(militaryFont(Font.PLAIN, 12));
+            g2d.drawString("HIDE IN THE GREEN CORNERS!", boxX + 12, 55);
         } else {
             double remaining = dragon.getSpawnTimerRemaining();
             String timeStr = remaining >= 60
                     ? String.format("%.0fm %.0fs", Math.floor(remaining / 60), remaining % 60)
                     : String.format("%.0fs", remaining);
             g2d.setColor(new Color(200, 200, 200));
-            g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
-            g2d.drawString("Dragon attack in: " + timeStr, boxX + 12, 36);
-            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
-            g2d.drawString("Corners are dragon-free zones", boxX + 12, 55);
+            g2d.setFont(militaryFont(Font.BOLD, 14));
+            g2d.drawString("DRAGON ATTACK IN: " + timeStr, boxX + 12, 36);
+            g2d.setFont(militaryFont(Font.PLAIN, 12));
+            g2d.drawString("CORNERS ARE DRAGON-FREE ZONES", boxX + 12, 55);
         }
     }
 
@@ -460,7 +540,7 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setColor(new Color(180, 40, 0, 190));
         g2d.fillRoundRect(w / 2 - 175, 6, 350, 36, 10, 10);
         g2d.setColor(new Color(255, 210, 50));
-        g2d.setFont(new Font("SansSerif", Font.BOLD, 18));
+        g2d.setFont(militaryFont(Font.BOLD, 18));
         g2d.drawString("DRAGON - HIDE IN THE CORNERS!", w / 2 - 165, 31);
     }
 
@@ -475,6 +555,7 @@ public class GamePanel extends JPanel implements Runnable {
         int height = 16;
 
         g2d.setColor(Color.WHITE);
+        g2d.setFont(militaryFont(Font.BOLD, 13));
         g2d.drawString(label + ": " + health + "/" + maxHealth, x, y - 5);
 
         g2d.setColor(new Color(70, 70, 70));
@@ -493,10 +574,14 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.fillRoundRect(355, 318, 320, 120, 18, 18);
 
         g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("SansSerif", Font.BOLD, 30));
-        g2d.drawString(message, 420, 388);
+        g2d.setFont(militaryFont(Font.BOLD, 30));
+        g2d.drawString(message.toUpperCase(), 420, 388);
 
-        g2d.setFont(new Font("SansSerif", Font.PLAIN, 18));
-        g2d.drawString("Press R to restart", 430, 418);
+        g2d.setFont(militaryFont(Font.PLAIN, 18));
+        g2d.drawString("PRESS R TO RESTART", 430, 418);
+    }
+
+    private Font militaryFont(int style, int size) {
+        return new Font("Monospaced", style, size);
     }
 }

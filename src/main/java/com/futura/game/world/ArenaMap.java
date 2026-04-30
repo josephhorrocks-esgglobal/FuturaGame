@@ -13,11 +13,13 @@ import java.util.Random;
 public class ArenaMap {
     private static final Vector2 PLAYER_SPAWN = new Vector2(120, 120);
     private static final Vector2 AI_SPAWN = new Vector2(840, 620);
+    private static final double OBSTACLE_HIT_FLASH_SECONDS = 0.22;
 
     private final int width;
     private final int height;
     private final MapType mapType;
     private final List<Rectangle> obstacles;
+    private final List<Double> obstacleHitTimers;
     private final List<Rectangle> lakes;
     private final Random random;
     private final List<Vector2> slowPatches;
@@ -28,9 +30,18 @@ public class ArenaMap {
         this.mapType = mapType;
         this.random = new Random();
         this.obstacles = new ArrayList<>();
+        this.obstacleHitTimers = new ArrayList<>();
         this.lakes = new ArrayList<>();
         buildMapGeometry();
+        initializeObstacleHitTimers();
         this.slowPatches = buildSlowPatches();
+    }
+
+    private void initializeObstacleHitTimers() {
+        obstacleHitTimers.clear();
+        for (int i = 0; i < obstacles.size(); i++) {
+            obstacleHitTimers.add(0.0);
+        }
     }
 
     private void buildMapGeometry() {
@@ -143,6 +154,28 @@ public class ArenaMap {
         return false;
     }
 
+    public void update(double deltaTime) {
+        for (int i = 0; i < obstacleHitTimers.size(); i++) {
+            double remaining = obstacleHitTimers.get(i) - deltaTime;
+            obstacleHitTimers.set(i, Math.max(0.0, remaining));
+        }
+    }
+
+    public boolean registerObstacleHit(double x, double y, double radius) {
+        int left = (int) Math.round(x - radius);
+        int top = (int) Math.round(y - radius);
+        int size = (int) Math.round(radius * 2.0);
+        Rectangle hitBox = new Rectangle(left, top, size, size);
+
+        for (int i = 0; i < obstacles.size(); i++) {
+            if (obstacles.get(i).intersects(hitBox)) {
+                obstacleHitTimers.set(i, OBSTACLE_HIT_FLASH_SECONDS);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public int getSlowPatchCount() {
         return slowPatches.size();
     }
@@ -190,20 +223,25 @@ public class ArenaMap {
     }
 
     public void render(Graphics2D g2d) {
-        g2d.setColor(new Color(181, 205, 154));
+        g2d.setColor(new Color(198, 230, 174));
         g2d.fillRect(0, 0, width, height);
 
-        g2d.setColor(new Color(92, 114, 74));
-        for (Rectangle obstacle : obstacles) {
+        Color obstacleBaseColor = new Color(112, 143, 88);
+        Color obstacleHitColor = new Color(255, 156, 97);
+        for (int i = 0; i < obstacles.size(); i++) {
+            Rectangle obstacle = obstacles.get(i);
+            g2d.setColor(obstacleHitTimers.get(i) > 0.0 ? obstacleHitColor : obstacleBaseColor);
             g2d.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            g2d.setColor(new Color(56, 82, 42, 145));
+            g2d.drawRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
         }
 
-        g2d.setColor(new Color(72, 132, 197));
+        g2d.setColor(new Color(104, 175, 240));
         for (Rectangle lake : lakes) {
             g2d.fillOval(lake.x, lake.y, lake.width, lake.height);
         }
 
-        g2d.setColor(new Color(40, 95, 152));
+        g2d.setColor(new Color(58, 126, 186));
         for (Rectangle lake : lakes) {
             g2d.drawOval(lake.x, lake.y, lake.width, lake.height);
         }
@@ -214,10 +252,10 @@ public class ArenaMap {
             int x = (int) Math.round(slowPatch.x()) - radius;
             int y = (int) Math.round(slowPatch.y()) - radius;
 
-            g2d.setColor(new Color(58, 112, 194, 70));
+            g2d.setColor(new Color(89, 145, 226, 70));
             g2d.fillOval(x, y, diameter, diameter);
 
-            g2d.setColor(new Color(41, 86, 161));
+            g2d.setColor(new Color(62, 109, 184));
             g2d.drawOval(x, y, diameter, diameter);
         }
     }

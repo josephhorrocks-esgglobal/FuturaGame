@@ -29,8 +29,21 @@ public class Projectile extends Entity {
         int x = (int) Math.round(position.x() - radius);
         int y = (int) Math.round(position.y() - radius);
 
-        g2d.setColor(new Color(40, 40, 40));
+        g2d.setColor(new Color(36, 36, 36));
         g2d.fillOval(x, y, d, d);
+
+        g2d.setColor(new Color(232, 132, 70));
+        g2d.fillOval(x + 1, y + 1, Math.max(1, d - 2), Math.max(1, d - 2));
+
+        int core = Math.max(2, d / 2);
+        int coreX = (int) Math.round(position.x() - core / 2.0);
+        int coreY = (int) Math.round(position.y() - core / 2.0);
+        g2d.setColor(new Color(255, 233, 150));
+        g2d.fillOval(coreX, coreY, core, core);
+
+        int shine = Math.max(2, d / 3);
+        g2d.setColor(new Color(255, 255, 255, 150));
+        g2d.fillOval(x + 1, y + 1, shine, shine);
     }
 
     public boolean isExpired() {

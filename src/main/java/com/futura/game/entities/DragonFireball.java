@@ -65,17 +65,17 @@ public class DragonFireball extends Entity {
         float alpha = (float) (0.35 + 0.30 * Math.sin(progress * Math.PI * 8));
         Composite old = wg.getComposite();
         wg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, alpha)));
-        wg.setColor(new Color(220, 40, 0));
+        wg.setColor(new Color(255, 120, 88));
         wg.fillOval(cx - r, cy - r, r * 2, r * 2);
         wg.setComposite(old);
 
         Stroke oldStroke = wg.getStroke();
-        wg.setStroke(new BasicStroke(2.5f));
-        wg.setColor(new Color(255, 80, 0));
+        wg.setStroke(new BasicStroke(3.0f));
+        wg.setColor(new Color(255, 160, 64));
         wg.drawOval(cx - r, cy - r, r * 2, r * 2);
         wg.setStroke(oldStroke);
 
-        wg.setColor(new Color(255, 60, 0, 180));
+        wg.setColor(new Color(255, 212, 112, 180));
         wg.drawLine(cx - r, cy, cx + r, cy);
         wg.drawLine(cx, cy - r, cx, cy + r);
 
@@ -83,11 +83,11 @@ public class DragonFireball extends Entity {
         double bombY = cy - r - 30 + (r + 30) * progress;
         int bx = cx - 7;
         int by = (int) Math.round(bombY);
-        wg.setColor(new Color(40, 40, 40));
+        wg.setColor(new Color(52, 52, 58));
         wg.fillRoundRect(bx, by - 12, 14, 22, 6, 6);
-        wg.setColor(new Color(160, 160, 160));
+        wg.setColor(new Color(185, 185, 192));
         wg.fillRect(bx + 3, by - 18, 8, 8);
-        wg.setColor(new Color(255, 160, 0));
+        wg.setColor(new Color(255, 200, 98));
         wg.fillOval(bx + 3, by + 8, 8, 8);
 
         wg.dispose();
@@ -116,22 +116,22 @@ public class DragonFireball extends Entity {
         Composite old = eg.getComposite();
         eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
 
-        eg.setColor(new Color(220, 60, 0));
+        eg.setColor(new Color(255, 108, 62));
         eg.fillOval(cx - r, cy - r, r * 2, r * 2);
 
         int mid = (int) Math.round(r * 0.65);
-        eg.setColor(new Color(255, 150, 0));
+        eg.setColor(new Color(255, 176, 78));
         eg.fillOval(cx - mid, cy - mid, mid * 2, mid * 2);
 
         int core = (int) Math.round(r * 0.30);
-        eg.setColor(new Color(255, 245, 180));
+        eg.setColor(new Color(255, 246, 190));
         eg.fillOval(cx - core, cy - core, core * 2, core * 2);
 
         eg.setComposite(old);
 
         float ringAlpha = (float) Math.max(0.0, 0.9 - t);
         eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, ringAlpha)));
-        eg.setColor(new Color(255, 200, 80));
+        eg.setColor(new Color(255, 216, 110));
         Stroke oldStroke = eg.getStroke();
         eg.setStroke(new BasicStroke(3.0f));
         eg.drawOval(cx - r - 4, cy - r - 4, (r + 4) * 2, (r + 4) * 2);

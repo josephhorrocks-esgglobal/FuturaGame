@@ -12,11 +12,23 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
+import javax.swing.JWindow;
+import javax.swing.BorderFactory;
+import javax.swing.UIDefaults;
+import javax.swing.UIManager;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.net.ServerSocket;
+import java.util.Enumeration;
 import java.util.concurrent.ExecutionException;
+import javax.swing.plaf.FontUIResource;
 
 public final class FuturaGameApplication {
     private enum LaunchMode {
@@ -33,6 +45,8 @@ public final class FuturaGameApplication {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            installMilitaryUiFont();
+            showSplashScreen(() -> {
             StartupConfig startupConfig = chooseStartupConfig();
             if (startupConfig == null) {
                 return;
@@ -42,7 +56,62 @@ public final class FuturaGameApplication {
             GameWindow gameWindow = new GameWindow(gamePanel);
             gameWindow.setVisible(true);
             gamePanel.startGame();
+            });
         });
+    }
+
+    private static void showSplashScreen(Runnable onComplete) {
+        JWindow splash = new JWindow();
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(22, 24, 30));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(150, 85, 55), 3));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(6, 12, 6, 12);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        JLabel title = new JLabel("OPERATION TANK DUEL");
+        title.setForeground(new Color(242, 206, 143));
+        title.setFont(new Font("Monospaced", Font.BOLD, 28));
+        panel.add(title, gbc);
+
+        gbc.gridy = 1;
+        JLabel subtitle = new JLabel("Warzone briefing loading...");
+        subtitle.setForeground(new Color(208, 208, 208));
+        subtitle.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        panel.add(subtitle, gbc);
+
+        gbc.gridy = 2;
+        JLabel footer = new JLabel("Futura Armored Command");
+        footer.setForeground(new Color(171, 184, 200));
+        footer.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        panel.add(footer, gbc);
+
+        splash.setContentPane(panel);
+        splash.setSize(520, 220);
+        splash.setLocationRelativeTo(null);
+        splash.setVisible(true);
+
+        Timer timer = new Timer(2000, e -> {
+            splash.dispose();
+            onComplete.run();
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private static void installMilitaryUiFont() {
+        UIDefaults defaults = UIManager.getDefaults();
+        Enumeration<Object> keys = defaults.keys();
+        while (keys.hasMoreElements()) {
+            Object key = keys.nextElement();
+            Object value = defaults.get(key);
+            if (value instanceof FontUIResource fontResource) {
+                defaults.put(key, new FontUIResource("Monospaced", fontResource.getStyle(), fontResource.getSize()));
+            }
+        }
     }
 
     private static StartupConfig chooseStartupConfig() {
