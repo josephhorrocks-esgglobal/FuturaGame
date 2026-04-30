@@ -19,6 +19,10 @@ public final class GameConfig {
     public static final double SHOOT_COOLDOWN_SECONDS = 0.75;
     public static final double TANK_RADIUS = 18.0;
 
+    public static final double SLOW_ZONE_RADIUS = 52.0;
+    public static final int SLOW_PATCH_COUNT = 3;
+    public static final double SLOW_MULTIPLIER = 0.5;
+
     private GameConfig() {
     }
 }

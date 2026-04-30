@@ -30,7 +30,7 @@ public class AITank extends Tank {
         }
 
         if (Math.abs(angleDelta) < 0.55) {
-            moveForward(deltaTime, map);
+            moveForward(deltaTime, map, target);
         }
 
         if (Math.abs(angleDelta) < 0.15 && canShoot()) {

@@ -16,11 +16,17 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 public class GamePanel extends JPanel implements Runnable {
+    private static final Vector2 PLAYER_SPAWN = new Vector2(120, 120);
+    private static final Vector2 AI_SPAWN = new Vector2(840, 620);
+    private static final double PLAYER_SPAWN_ROTATION = -Math.PI / 2.0;
+    private static final double AI_SPAWN_ROTATION = Math.PI / 2.0;
+
     private final InputHandler inputHandler;
     private final ArenaMap arenaMap;
 
@@ -31,6 +37,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private GameState gameState;
     private Thread gameThread;
+    private boolean restartKeyWasDown;
 
     public GamePanel() {
         setPreferredSize(new Dimension(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT));
@@ -40,11 +47,12 @@ public class GamePanel extends JPanel implements Runnable {
         addKeyListener(inputHandler);
 
         this.arenaMap = new ArenaMap(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT);
-        this.playerTank = new PlayerTank(new Vector2(120, 120));
-        this.aiTank = new AITank(new Vector2(840, 620));
+        this.playerTank = new PlayerTank(PLAYER_SPAWN);
+        this.aiTank = new AITank(AI_SPAWN);
         this.playerProjectiles = new ArrayList<>();
         this.aiProjectiles = new ArrayList<>();
         this.gameState = GameState.RUNNING;
+        this.restartKeyWasDown = false;
     }
 
     public void startGame() {
@@ -80,10 +88,16 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void updateGame(double deltaTime) {
         if (gameState != GameState.RUNNING) {
+            handleRestartInput();
             return;
         }
 
-        Projectile playerShot = playerTank.updateAndTryShoot(deltaTime, inputHandler, arenaMap);
+        playerTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(playerTank.getPosition())
+                ? GameConfig.SLOW_MULTIPLIER : 1.0);
+        aiTank.setSpeedMultiplier(arenaMap.isInsideSlowZone(aiTank.getPosition())
+                ? GameConfig.SLOW_MULTIPLIER : 1.0);
+
+        Projectile playerShot = playerTank.updateAndTryShoot(deltaTime, inputHandler, arenaMap, aiTank);
         if (playerShot != null) {
             playerProjectiles.add(playerShot);
         }
@@ -95,6 +109,22 @@ public class GamePanel extends JPanel implements Runnable {
 
         updateProjectiles(playerProjectiles, aiTank);
         updateProjectiles(aiProjectiles, playerTank);
+    }
+
+    private void handleRestartInput() {
+        boolean restartDown = inputHandler.isKeyDown(KeyEvent.VK_R);
+        if (restartDown && !restartKeyWasDown) {
+            resetRound();
+        }
+        restartKeyWasDown = restartDown;
+    }
+
+    private void resetRound() {
+        playerTank.reset(PLAYER_SPAWN, PLAYER_SPAWN_ROTATION);
+        aiTank.reset(AI_SPAWN, AI_SPAWN_ROTATION);
+        playerProjectiles.clear();
+        aiProjectiles.clear();
+        gameState = GameState.RUNNING;
     }
 
     private void updateProjectiles(List<Projectile> projectiles, Tank target) {
@@ -140,12 +170,21 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawHud(Graphics2D g2d) {
+        boolean playerSlowed = arenaMap.isInsideSlowZone(playerTank.getPosition());
+        boolean aiSlowed = arenaMap.isInsideSlowZone(aiTank.getPosition());
+
         g2d.setColor(new Color(25, 25, 25, 170));
-        g2d.fillRoundRect(14, 12, 320, 58, 12, 12);
+        g2d.fillRoundRect(14, 12, 360, 112, 12, 12);
 
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
         g2d.drawString("W/S: move  A/D: rotate  SPACE: shoot", 24, 35);
+
+        g2d.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        g2d.drawString("Player slowed: " + (playerSlowed ? "YES" : "NO"), 24, 58);
+        g2d.drawString("AI slowed: " + (aiSlowed ? "YES" : "NO"), 24, 78);
+
+        g2d.drawString("Static slow patches: " + arenaMap.getSlowPatchCount(), 24, 98);
 
         if (gameState == GameState.PLAYER_WON) {
             drawCenterMessage(g2d, "Player Wins");
@@ -161,5 +200,8 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SansSerif", Font.BOLD, 30));
         g2d.drawString(message, 420, 388);
+
+        g2d.setFont(new Font("SansSerif", Font.PLAIN, 18));
+        g2d.drawString("Press R to restart", 430, 418);
     }
 }

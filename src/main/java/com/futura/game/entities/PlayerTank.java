@@ -18,7 +18,7 @@ public class PlayerTank extends Tank {
                 GameConfig.TANK_RADIUS);
     }
 
-    public Projectile updateAndTryShoot(double deltaTime, InputHandler input, ArenaMap map) {
+    public Projectile updateAndTryShoot(double deltaTime, InputHandler input, ArenaMap map, Tank opponentTank) {
         update(deltaTime);
 
         if (input.isKeyDown(KeyEvent.VK_A)) {
@@ -28,10 +28,10 @@ public class PlayerTank extends Tank {
             rotateRight(deltaTime);
         }
         if (input.isKeyDown(KeyEvent.VK_W)) {
-            moveForward(deltaTime, map);
+            moveForward(deltaTime, map, opponentTank);
         }
         if (input.isKeyDown(KeyEvent.VK_S)) {
-            moveBackward(deltaTime, map);
+            moveBackward(deltaTime, map, opponentTank);
         }
 
         if (input.isKeyDown(KeyEvent.VK_SPACE) && canShoot()) {
