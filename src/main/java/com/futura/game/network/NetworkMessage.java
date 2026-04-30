@@ -8,7 +8,8 @@ public record NetworkMessage(Type type, double[] data) {
         HIT,     // remote's projectile hit me — I must apply damage to myself
         HEALTH,  // data: [health] — my health after taking a hit
         DEAD,    // I died — sender lost
-        RESTART  // request round reset
+        RESTART, // request round reset
+        MAP      // data: [mapOrdinal] host-selected map
     }
 
     public static NetworkMessage parse(String line) {
@@ -37,6 +38,9 @@ public record NetworkMessage(Type type, double[] data) {
             }
             if (line.equals("RESTART")) {
                 return new NetworkMessage(Type.RESTART, new double[0]);
+            }
+            if (line.startsWith("MAP:")) {
+                return new NetworkMessage(Type.MAP, new double[]{Double.parseDouble(line.substring(4))});
             }
         } catch (NumberFormatException ignored) {
         }
