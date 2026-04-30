@@ -34,6 +34,7 @@ public class GamePanel extends JPanel implements Runnable {
     private final AITank aiTank;
     private final List<Projectile> playerProjectiles;
     private final List<Projectile> aiProjectiles;
+    private final Object projectileLock;
 
     private GameState gameState;
     private Thread gameThread;
@@ -51,6 +52,7 @@ public class GamePanel extends JPanel implements Runnable {
         this.aiTank = new AITank(AI_SPAWN);
         this.playerProjectiles = new ArrayList<>();
         this.aiProjectiles = new ArrayList<>();
+        this.projectileLock = new Object();
         this.gameState = GameState.RUNNING;
         this.restartKeyWasDown = false;
     }
@@ -98,17 +100,18 @@ public class GamePanel extends JPanel implements Runnable {
                 ? GameConfig.SLOW_MULTIPLIER : 1.0);
 
         Projectile playerShot = playerTank.updateAndTryShoot(deltaTime, inputHandler, arenaMap, aiTank);
-        if (playerShot != null) {
-            playerProjectiles.add(playerShot);
-        }
-
         Projectile aiShot = aiTank.updateAndTryShoot(deltaTime, playerTank, arenaMap);
-        if (aiShot != null) {
-            aiProjectiles.add(aiShot);
-        }
+        synchronized (projectileLock) {
+            if (playerShot != null) {
+                playerProjectiles.add(playerShot);
+            }
+            if (aiShot != null) {
+                aiProjectiles.add(aiShot);
+            }
 
-        updateProjectiles(playerProjectiles, aiTank);
-        updateProjectiles(aiProjectiles, playerTank);
+            updateProjectiles(playerProjectiles);
+            updateProjectiles(aiProjectiles);
+        }
     }
 
     private void handleRestartInput() {
@@ -122,28 +125,43 @@ public class GamePanel extends JPanel implements Runnable {
     private void resetRound() {
         playerTank.reset(PLAYER_SPAWN, PLAYER_SPAWN_ROTATION);
         aiTank.reset(AI_SPAWN, AI_SPAWN_ROTATION);
-        playerProjectiles.clear();
-        aiProjectiles.clear();
+        synchronized (projectileLock) {
+            playerProjectiles.clear();
+            aiProjectiles.clear();
+        }
         gameState = GameState.RUNNING;
     }
 
-    private void updateProjectiles(List<Projectile> projectiles, Tank target) {
+    private void updateProjectiles(List<Projectile> projectiles) {
         Iterator<Projectile> iterator = projectiles.iterator();
         while (iterator.hasNext()) {
             Projectile projectile = iterator.next();
-            projectile.update(GameConfig.DELTA_TIME);
+            projectile.update(GameConfig.DELTA_TIME, arenaMap);
 
             Vector2 pos = projectile.getPosition();
-            if (projectile.isExpired()
-                    || !arenaMap.isInsideBounds(pos.x(), pos.y(), projectile.getRadius())
-                    || arenaMap.collidesWithObstacle(pos.x(), pos.y(), projectile.getRadius())) {
+            if (projectile.isExpired()) {
                 iterator.remove();
                 continue;
             }
 
-            double hitDistance = projectile.getRadius() + target.getRadius();
-            if (Vector2.distance(pos, target.getPosition()) <= hitDistance) {
-                gameState = (target == playerTank) ? GameState.AI_WON : GameState.PLAYER_WON;
+            double playerHitDistance = projectile.getRadius() + playerTank.getRadius();
+            double aiHitDistance = projectile.getRadius() + aiTank.getRadius();
+
+            boolean hitPlayer = Vector2.distance(pos, playerTank.getPosition()) <= playerHitDistance;
+            boolean hitAi = Vector2.distance(pos, aiTank.getPosition()) <= aiHitDistance;
+
+            if (hitPlayer && hitAi) {
+                double playerDistance = Vector2.distance(pos, playerTank.getPosition());
+                double aiDistance = Vector2.distance(pos, aiTank.getPosition());
+                hitPlayer = playerDistance <= aiDistance;
+                hitAi = !hitPlayer;
+            }
+
+            if (hitPlayer) {
+                gameState = GameState.AI_WON;
+                iterator.remove();
+            } else if (hitAi) {
+                gameState = GameState.PLAYER_WON;
                 iterator.remove();
             }
         }
@@ -159,11 +177,13 @@ public class GamePanel extends JPanel implements Runnable {
         playerTank.render(g2d);
         aiTank.render(g2d);
 
-        for (Projectile p : playerProjectiles) {
-            p.render(g2d);
-        }
-        for (Projectile p : aiProjectiles) {
-            p.render(g2d);
+        synchronized (projectileLock) {
+            for (Projectile p : playerProjectiles) {
+                p.render(g2d);
+            }
+            for (Projectile p : aiProjectiles) {
+                p.render(g2d);
+            }
         }
 
         drawHud(g2d);

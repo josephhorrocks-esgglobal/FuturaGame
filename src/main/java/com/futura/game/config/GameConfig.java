@@ -15,7 +15,9 @@ public final class GameConfig {
     public static final double AI_ROTATION_SPEED = Math.PI * 0.8;
 
     public static final double PROJECTILE_SPEED = 320.0;
+    public static final double PROJECTILE_RADIUS = 4.0;
     public static final double PROJECTILE_LIFETIME_SECONDS = 3.5;
+    public static final double PROJECTILE_MAX_AGE_SECONDS = 6.0;
     public static final double SHOOT_COOLDOWN_SECONDS = 0.75;
     public static final double TANK_RADIUS = 18.0;
 
