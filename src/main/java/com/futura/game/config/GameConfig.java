@@ -23,6 +23,9 @@ public final class GameConfig {
     public static final int SLOW_PATCH_COUNT = 3;
     public static final double SLOW_MULTIPLIER = 0.5;
 
+    public static final int CITY_MAP_BUILDING_COUNT = 12;
+    public static final int CITY_MAP_LAKE_COUNT = 4;
+
     private GameConfig() {
     }
 }
