@@ -68,12 +68,20 @@ public abstract class Tank extends Entity {
         return shootCooldown <= 0.0;
     }
 
+    protected Vector2 getForwardDirection() {
+        return Vector2.fromAngle(rotation).normalize();
+    }
+
+    protected Vector2 getMuzzlePosition() {
+        return position.add(getForwardDirection().scale(radius + 8.0));
+    }
+
     protected Projectile buildProjectile() {
-        Vector2 direction = Vector2.fromAngle(rotation).normalize();
-        Vector2 muzzle = position.add(direction.scale(radius + 8.0));
+        Vector2 direction = getForwardDirection();
+        Vector2 muzzle = getMuzzlePosition();
         Vector2 velocity = direction.scale(GameConfig.PROJECTILE_SPEED);
         shootCooldown = GameConfig.SHOOT_COOLDOWN_SECONDS;
-        return new Projectile(muzzle, rotation, velocity, 4.0, GameConfig.PROJECTILE_LIFETIME_SECONDS);
+        return new Projectile(muzzle, rotation, velocity, GameConfig.PROJECTILE_RADIUS, GameConfig.PROJECTILE_LIFETIME_SECONDS);
     }
 
     protected void tickCooldown(double deltaTime) {
