@@ -2,6 +2,8 @@ package com.futura.game.core;
 
 import com.futura.game.config.GameConfig;
 import com.futura.game.entities.AITank;
+import com.futura.game.entities.Dragon;
+import com.futura.game.entities.DragonFireball;
 import com.futura.game.entities.PlayerTank;
 import com.futura.game.entities.Projectile;
 import com.futura.game.entities.Tank;
@@ -11,6 +13,7 @@ import com.futura.game.world.ArenaMap;
 import com.futura.game.world.MapType;
 
 import javax.swing.JPanel;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -36,6 +39,9 @@ public class GamePanel extends JPanel implements Runnable {
     private final List<Projectile> playerProjectiles;
     private final List<Projectile> aiProjectiles;
 
+    private final Dragon dragon;
+    private final List<DragonFireball> dragonFireballs;
+
     private GameState gameState;
     private Thread gameThread;
     private boolean restartKeyWasDown;
@@ -52,6 +58,8 @@ public class GamePanel extends JPanel implements Runnable {
         this.aiTank = new AITank(AI_SPAWN);
         this.playerProjectiles = new ArrayList<>();
         this.aiProjectiles = new ArrayList<>();
+        this.dragon = new Dragon(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT);
+        this.dragonFireballs = new ArrayList<>();
         this.gameState = GameState.RUNNING;
         this.restartKeyWasDown = false;
     }
@@ -110,6 +118,47 @@ public class GamePanel extends JPanel implements Runnable {
 
         updateProjectiles(playerProjectiles, aiTank);
         updateProjectiles(aiProjectiles, playerTank);
+
+        dragon.update(deltaTime);
+        dragonFireballs.addAll(dragon.tryFire(playerTank.getPosition(), aiTank.getPosition()));
+        updateDragonFireballs();
+    }
+
+    private void updateDragonFireballs() {
+        Iterator<DragonFireball> it = dragonFireballs.iterator();
+        while (it.hasNext()) {
+            DragonFireball bomb = it.next();
+            bomb.update(GameConfig.DELTA_TIME);
+
+            if (bomb.isDone()) {
+                it.remove();
+                continue;
+            }
+
+            if (bomb.shouldApplyDamage()) {
+                bomb.markDamageApplied();
+                applyBombDamage(bomb);
+            }
+        }
+    }
+
+    private void applyBombDamage(DragonFireball bomb) {
+        Vector2 blast = bomb.getTargetPosition();
+        double radius = bomb.getExplosionRadius();
+
+        if (Vector2.distance(blast, playerTank.getPosition()) <= radius + playerTank.getRadius()) {
+            boolean destroyed = playerTank.applyHit();
+            if (destroyed) {
+                gameState = GameState.AI_WON;
+            }
+        }
+
+        if (Vector2.distance(blast, aiTank.getPosition()) <= radius + aiTank.getRadius()) {
+            boolean destroyed = aiTank.applyHit();
+            if (destroyed) {
+                gameState = GameState.PLAYER_WON;
+            }
+        }
     }
 
     private void handleRestartInput() {
@@ -125,6 +174,8 @@ public class GamePanel extends JPanel implements Runnable {
         aiTank.reset(AI_SPAWN, AI_SPAWN_ROTATION);
         playerProjectiles.clear();
         aiProjectiles.clear();
+        dragon.reset();
+        dragonFireballs.clear();
         gameState = GameState.RUNNING;
     }
 
@@ -144,7 +195,10 @@ public class GamePanel extends JPanel implements Runnable {
 
             double hitDistance = projectile.getRadius() + target.getRadius();
             if (Vector2.distance(pos, target.getPosition()) <= hitDistance) {
-                gameState = (target == playerTank) ? GameState.AI_WON : GameState.PLAYER_WON;
+                boolean targetDestroyed = target.applyHit();
+                if (targetDestroyed) {
+                    gameState = (target == playerTank) ? GameState.AI_WON : GameState.PLAYER_WON;
+                }
                 iterator.remove();
             }
         }
@@ -157,6 +211,7 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         arenaMap.render(g2d);
+        drawCornerZones(g2d);
         playerTank.render(g2d);
         aiTank.render(g2d);
 
@@ -166,8 +221,16 @@ public class GamePanel extends JPanel implements Runnable {
         for (Projectile p : aiProjectiles) {
             p.render(g2d);
         }
+        for (DragonFireball fb : dragonFireballs) {
+            fb.render(g2d);
+        }
+        dragon.render(g2d);
 
         drawHud(g2d);
+        drawDragonHud(g2d);
+        if (dragon.isFlying()) {
+            drawDragonWarning(g2d);
+        }
     }
 
     private void drawHud(Graphics2D g2d) {
@@ -175,7 +238,7 @@ public class GamePanel extends JPanel implements Runnable {
         boolean aiSlowed = arenaMap.isInsideSlowZone(aiTank.getPosition());
 
         g2d.setColor(new Color(25, 25, 25, 170));
-        g2d.fillRoundRect(14, 12, 360, 134, 12, 12);
+        g2d.fillRoundRect(14, 12, 420, 172, 12, 12);
 
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
@@ -188,11 +251,93 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.drawString("Static slow patches: " + arenaMap.getSlowPatchCount(), 24, 98);
         g2d.drawString("Map: " + arenaMap.getMapName(), 24, 118);
 
+        drawHealthBar(g2d, 24, 132, "Player HP", playerTank.getHealth(), playerTank.getMaxHealth(), new Color(56, 120, 210));
+        drawHealthBar(g2d, 224, 132, "AI HP", aiTank.getHealth(), aiTank.getMaxHealth(), new Color(212, 84, 66));
+
         if (gameState == GameState.PLAYER_WON) {
             drawCenterMessage(g2d, "Player Wins");
         } else if (gameState == GameState.AI_WON) {
             drawCenterMessage(g2d, "AI Wins");
         }
+    }
+
+    private void drawCornerZones(Graphics2D g2d) {
+        int s = (int) Math.round(GameConfig.DRAGON_CORNER_SAFE_SIZE);
+        int w = GameConfig.WINDOW_WIDTH;
+        int h = GameConfig.WINDOW_HEIGHT;
+
+        g2d.setColor(new Color(80, 200, 80, 35));
+        g2d.fillRect(0, 0, s, s);
+        g2d.fillRect(w - s, 0, s, s);
+        g2d.fillRect(0, h - s, s, s);
+        g2d.fillRect(w - s, h - s, s, s);
+
+        g2d.setColor(new Color(50, 170, 50, 110));
+        g2d.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER,
+                10.0f, new float[]{5, 4}, 0));
+        g2d.drawRect(0, 0, s, s);
+        g2d.drawRect(w - s, 0, s, s);
+        g2d.drawRect(0, h - s, s, s);
+        g2d.drawRect(w - s, h - s, s, s);
+        g2d.setStroke(new BasicStroke(1.0f));
+    }
+
+    private void drawDragonHud(Graphics2D g2d) {
+        int boxX = GameConfig.WINDOW_WIDTH - 268;
+        g2d.setColor(new Color(25, 25, 25, 170));
+        g2d.fillRoundRect(boxX, 12, 254, 54, 12, 12);
+
+        if (dragon.isFlying()) {
+            g2d.setColor(new Color(255, 100, 0));
+            g2d.setFont(new Font("SansSerif", Font.BOLD, 15));
+            g2d.drawString("DRAGON INCOMING!", boxX + 12, 36);
+            g2d.setColor(new Color(200, 200, 200));
+            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            g2d.drawString("Hide in the green corners!", boxX + 12, 55);
+        } else {
+            double remaining = dragon.getSpawnTimerRemaining();
+            String timeStr = remaining >= 60
+                    ? String.format("%.0fm %.0fs", Math.floor(remaining / 60), remaining % 60)
+                    : String.format("%.0fs", remaining);
+            g2d.setColor(new Color(200, 200, 200));
+            g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
+            g2d.drawString("Dragon attack in: " + timeStr, boxX + 12, 36);
+            g2d.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            g2d.drawString("Corners are dragon-free zones", boxX + 12, 55);
+        }
+    }
+
+    private void drawDragonWarning(Graphics2D g2d) {
+        int w = GameConfig.WINDOW_WIDTH;
+        g2d.setColor(new Color(180, 40, 0, 190));
+        g2d.fillRoundRect(w / 2 - 175, 6, 350, 36, 10, 10);
+        g2d.setColor(new Color(255, 210, 50));
+        g2d.setFont(new Font("SansSerif", Font.BOLD, 18));
+        g2d.drawString("DRAGON - HIDE IN THE CORNERS!", w / 2 - 165, 31);
+    }
+
+    private void drawHealthBar(Graphics2D g2d,
+                               int x,
+                               int y,
+                               String label,
+                               int health,
+                               int maxHealth,
+                               Color fillColor) {
+        int width = 170;
+        int height = 16;
+
+        g2d.setColor(Color.WHITE);
+        g2d.drawString(label + ": " + health + "/" + maxHealth, x, y - 5);
+
+        g2d.setColor(new Color(70, 70, 70));
+        g2d.fillRoundRect(x, y, width, height, 8, 8);
+
+        int filled = (int) Math.round((health / (double) maxHealth) * width);
+        g2d.setColor(fillColor);
+        g2d.fillRoundRect(x, y, filled, height, 8, 8);
+
+        g2d.setColor(new Color(20, 20, 20));
+        g2d.drawRoundRect(x, y, width, height, 8, 8);
     }
 
     private void drawCenterMessage(Graphics2D g2d, String message) {

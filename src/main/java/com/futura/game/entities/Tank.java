@@ -14,9 +14,11 @@ public abstract class Tank extends Entity {
     private final double baseMoveSpeed;
     private final double rotationSpeed;
     private final double radius;
+    private final int maxHealth;
 
     private double speed;
     private double shootCooldown;
+    private int health;
 
     protected Tank(Vector2 position,
                    double rotation,
@@ -30,6 +32,8 @@ public abstract class Tank extends Entity {
         this.speed = moveSpeed;
         this.rotationSpeed = rotationSpeed;
         this.radius = radius;
+        this.maxHealth = GameConfig.TANK_MAX_HEALTH;
+        this.health = maxHealth;
         this.shootCooldown = 0.0;
     }
 
@@ -84,7 +88,17 @@ public abstract class Tank extends Entity {
         position = newPosition;
         rotation = newRotation;
         speed = baseMoveSpeed;
+        health = maxHealth;
         shootCooldown = 0.0;
+    }
+
+    public boolean applyHit() {
+        if (health <= 0) {
+            return false;
+        }
+
+        health--;
+        return health <= 0;
     }
 
     public void setSpeedMultiplier(double speedMultiplier) {
@@ -93,6 +107,14 @@ public abstract class Tank extends Entity {
 
     public double getSpeed() {
         return speed;
+    }
+
+    public int getHealth() {
+        return health;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
     }
 
     @Override
