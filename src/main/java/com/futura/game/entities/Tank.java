@@ -10,10 +10,11 @@ import java.awt.Graphics2D;
 
 public abstract class Tank extends Entity {
     private final Color bodyColor;
-    private final double moveSpeed;
+    private final double baseMoveSpeed;
     private final double rotationSpeed;
     private final double radius;
 
+    private double speed;
     private double shootCooldown;
 
     protected Tank(Vector2 position,
@@ -24,7 +25,8 @@ public abstract class Tank extends Entity {
                    double radius) {
         super(position, rotation);
         this.bodyColor = bodyColor;
-        this.moveSpeed = moveSpeed;
+        this.baseMoveSpeed = moveSpeed;
+        this.speed = moveSpeed;
         this.rotationSpeed = rotationSpeed;
         this.radius = radius;
         this.shootCooldown = 0.0;
@@ -38,17 +40,23 @@ public abstract class Tank extends Entity {
         rotation += rotationSpeed * deltaTime;
     }
 
-    protected void moveForward(double deltaTime, ArenaMap map) {
-        attemptMove(moveSpeed * deltaTime, map);
+    protected void moveForward(double deltaTime, ArenaMap map, Tank blockingTank) {
+        attemptMove(speed * deltaTime, map, blockingTank);
     }
 
-    protected void moveBackward(double deltaTime, ArenaMap map) {
-        attemptMove(-moveSpeed * deltaTime, map);
+    protected void moveBackward(double deltaTime, ArenaMap map, Tank blockingTank) {
+        attemptMove(-speed * deltaTime, map, blockingTank);
     }
 
-    private void attemptMove(double distance, ArenaMap map) {
+    private void attemptMove(double distance, ArenaMap map, Tank blockingTank) {
         Vector2 forward = Vector2.fromAngle(rotation);
         Vector2 next = position.add(forward.scale(distance));
+        if (blockingTank != null) {
+            double minDistance = radius + blockingTank.getRadius();
+            if (Vector2.distance(next, blockingTank.getPosition()) < minDistance) {
+                return;
+            }
+        }
 
         if (map.isInsideBounds(next.x(), next.y(), radius) && !map.collidesWithObstacle(next.x(), next.y(), radius)) {
             position = next;
@@ -69,6 +77,21 @@ public abstract class Tank extends Entity {
 
     protected void tickCooldown(double deltaTime) {
         shootCooldown -= deltaTime;
+    }
+
+    public void reset(Vector2 newPosition, double newRotation) {
+        position = newPosition;
+        rotation = newRotation;
+        speed = baseMoveSpeed;
+        shootCooldown = 0.0;
+    }
+
+    public void setSpeedMultiplier(double speedMultiplier) {
+        speed = baseMoveSpeed * speedMultiplier;
+    }
+
+    public double getSpeed() {
+        return speed;
     }
 
     @Override
