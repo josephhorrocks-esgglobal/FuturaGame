@@ -8,6 +8,7 @@ import com.futura.game.entities.Tank;
 import com.futura.game.input.InputHandler;
 import com.futura.game.math.Vector2;
 import com.futura.game.world.ArenaMap;
+import com.futura.game.world.MapType;
 
 import javax.swing.JPanel;
 import java.awt.Color;
@@ -39,14 +40,14 @@ public class GamePanel extends JPanel implements Runnable {
     private Thread gameThread;
     private boolean restartKeyWasDown;
 
-    public GamePanel() {
+    public GamePanel(MapType mapType) {
         setPreferredSize(new Dimension(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT));
         setFocusable(true);
 
         this.inputHandler = new InputHandler();
         addKeyListener(inputHandler);
 
-        this.arenaMap = new ArenaMap(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT);
+        this.arenaMap = new ArenaMap(GameConfig.WINDOW_WIDTH, GameConfig.WINDOW_HEIGHT, mapType);
         this.playerTank = new PlayerTank(PLAYER_SPAWN);
         this.aiTank = new AITank(AI_SPAWN);
         this.playerProjectiles = new ArrayList<>();
@@ -174,7 +175,7 @@ public class GamePanel extends JPanel implements Runnable {
         boolean aiSlowed = arenaMap.isInsideSlowZone(aiTank.getPosition());
 
         g2d.setColor(new Color(25, 25, 25, 170));
-        g2d.fillRoundRect(14, 12, 360, 112, 12, 12);
+        g2d.fillRoundRect(14, 12, 360, 134, 12, 12);
 
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SansSerif", Font.BOLD, 14));
@@ -185,6 +186,7 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.drawString("AI slowed: " + (aiSlowed ? "YES" : "NO"), 24, 78);
 
         g2d.drawString("Static slow patches: " + arenaMap.getSlowPatchCount(), 24, 98);
+        g2d.drawString("Map: " + arenaMap.getMapName(), 24, 118);
 
         if (gameState == GameState.PLAYER_WON) {
             drawCenterMessage(g2d, "Player Wins");

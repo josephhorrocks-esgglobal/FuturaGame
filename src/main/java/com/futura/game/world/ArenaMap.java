@@ -11,27 +11,100 @@ import java.util.List;
 import java.util.Random;
 
 public class ArenaMap {
+    private static final Vector2 PLAYER_SPAWN = new Vector2(120, 120);
+    private static final Vector2 AI_SPAWN = new Vector2(840, 620);
+
     private final int width;
     private final int height;
+    private final MapType mapType;
     private final List<Rectangle> obstacles;
+    private final List<Rectangle> lakes;
     private final Random random;
     private final List<Vector2> slowPatches;
 
-    public ArenaMap(int width, int height) {
+    public ArenaMap(int width, int height, MapType mapType) {
         this.width = width;
         this.height = height;
-        this.obstacles = buildDefaultObstacles();
+        this.mapType = mapType;
         this.random = new Random();
+        this.obstacles = new ArrayList<>();
+        this.lakes = new ArrayList<>();
+        buildMapGeometry();
         this.slowPatches = buildSlowPatches();
     }
 
-    private List<Rectangle> buildDefaultObstacles() {
-        List<Rectangle> walls = new ArrayList<>();
-        walls.add(new Rectangle(220, 150, 65, 280));
-        walls.add(new Rectangle(480, 330, 120, 50));
-        walls.add(new Rectangle(700, 120, 55, 250));
-        walls.add(new Rectangle(360, 560, 320, 35));
-        return walls;
+    private void buildMapGeometry() {
+        if (mapType == MapType.CITY_MAP) {
+            buildCityMapGeometry();
+            return;
+        }
+
+        obstacles.add(new Rectangle(220, 150, 65, 280));
+        obstacles.add(new Rectangle(480, 330, 120, 50));
+        obstacles.add(new Rectangle(700, 120, 55, 250));
+        obstacles.add(new Rectangle(360, 560, 320, 35));
+    }
+
+    private void buildCityMapGeometry() {
+        for (int i = 0; i < GameConfig.CITY_MAP_BUILDING_COUNT; i++) {
+            Rectangle building = findValidRect(48, 120, 48, 120, obstacles, 80.0);
+            if (building != null) {
+                obstacles.add(building);
+            }
+        }
+
+        for (int i = 0; i < GameConfig.CITY_MAP_LAKE_COUNT; i++) {
+            Rectangle lake = findValidRect(60, 140, 60, 140, lakes, 95.0);
+            if (lake != null) {
+                lakes.add(lake);
+            }
+        }
+    }
+
+    private Rectangle findValidRect(int minWidth,
+                                    int maxWidth,
+                                    int minHeight,
+                                    int maxHeight,
+                                    List<Rectangle> ownCollection,
+                                    double spawnClearance) {
+        for (int i = 0; i < 80; i++) {
+            int rectWidth = minWidth + random.nextInt(maxWidth - minWidth + 1);
+            int rectHeight = minHeight + random.nextInt(maxHeight - minHeight + 1);
+            int x = random.nextInt(Math.max(1, width - rectWidth));
+            int y = random.nextInt(Math.max(1, height - rectHeight));
+
+            Rectangle candidate = new Rectangle(x, y, rectWidth, rectHeight);
+            if (intersectsAny(candidate, obstacles, 16)
+                    || intersectsAny(candidate, lakes, 16)
+                    || intersectsAny(candidate, ownCollection, 16)
+                    || isNearSpawn(candidate, PLAYER_SPAWN, spawnClearance)
+                    || isNearSpawn(candidate, AI_SPAWN, spawnClearance)) {
+                continue;
+            }
+            return candidate;
+        }
+
+        return null;
+    }
+
+    private boolean intersectsAny(Rectangle candidate, List<Rectangle> others, int padding) {
+        Rectangle padded = new Rectangle(
+                candidate.x - padding,
+                candidate.y - padding,
+                candidate.width + (padding * 2),
+                candidate.height + (padding * 2));
+        for (Rectangle other : others) {
+            if (padded.intersects(other)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isNearSpawn(Rectangle area, Vector2 spawn, double minDistance) {
+        double centerX = area.getCenterX();
+        double centerY = area.getCenterY();
+        return Vector2.distance(new Vector2(centerX, centerY), spawn) < minDistance;
     }
 
     public boolean isInsideBounds(double x, double y, double radius) {
@@ -49,6 +122,12 @@ public class ArenaMap {
 
         for (Rectangle obstacle : obstacles) {
             if (obstacle.intersects(hitBox)) {
+                return true;
+            }
+        }
+
+        for (Rectangle lake : lakes) {
+            if (lake.intersects(hitBox)) {
                 return true;
             }
         }
@@ -119,6 +198,16 @@ public class ArenaMap {
             g2d.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
         }
 
+        g2d.setColor(new Color(72, 132, 197));
+        for (Rectangle lake : lakes) {
+            g2d.fillOval(lake.x, lake.y, lake.width, lake.height);
+        }
+
+        g2d.setColor(new Color(40, 95, 152));
+        for (Rectangle lake : lakes) {
+            g2d.drawOval(lake.x, lake.y, lake.width, lake.height);
+        }
+
         for (Vector2 slowPatch : slowPatches) {
             int radius = (int) Math.round(GameConfig.SLOW_ZONE_RADIUS);
             int diameter = radius * 2;
@@ -135,5 +224,9 @@ public class ArenaMap {
 
     public List<Rectangle> getObstacles() {
         return List.copyOf(obstacles);
+    }
+
+    public String getMapName() {
+        return mapType.getDisplayName();
     }
 }

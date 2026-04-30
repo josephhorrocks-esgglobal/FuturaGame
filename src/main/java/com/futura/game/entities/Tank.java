@@ -7,6 +7,7 @@ import com.futura.game.world.ArenaMap;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
 
 public abstract class Tank extends Entity {
     private final Color bodyColor;
@@ -101,20 +102,43 @@ public abstract class Tank extends Entity {
 
     @Override
     public void render(Graphics2D g2d) {
-        int diameter = (int) Math.round(radius * 2.0);
-        int x = (int) Math.round(position.x() - radius);
-        int y = (int) Math.round(position.y() - radius);
+        Graphics2D tankGraphics = (Graphics2D) g2d.create();
+        AffineTransform oldTransform = tankGraphics.getTransform();
 
-        g2d.setColor(bodyColor);
-        g2d.fillOval(x, y, diameter, diameter);
+        tankGraphics.translate(position.x(), position.y());
+        tankGraphics.rotate(rotation);
 
-        Vector2 direction = Vector2.fromAngle(rotation);
-        int x2 = (int) Math.round(position.x() + direction.x() * (radius + 8.0));
-        int y2 = (int) Math.round(position.y() + direction.y() * (radius + 8.0));
+        int hullSize = (int) Math.round(radius * 2.0);
+        int halfHull = hullSize / 2;
+        int treadWidth = 5;
+        int cornerArc = 6;
 
-        g2d.setStroke(new BasicStroke(4.0f));
-        g2d.setColor(new Color(25, 25, 25));
-        g2d.drawLine((int) Math.round(position.x()), (int) Math.round(position.y()), x2, y2);
+        tankGraphics.setColor(new Color(34, 34, 34));
+        tankGraphics.fillRoundRect(-halfHull - treadWidth, -halfHull + 2, treadWidth, hullSize - 4, 4, 4);
+        tankGraphics.fillRoundRect(halfHull, -halfHull + 2, treadWidth, hullSize - 4, 4, 4);
+
+        tankGraphics.setColor(bodyColor);
+        tankGraphics.fillRoundRect(-halfHull, -halfHull, hullSize, hullSize, cornerArc, cornerArc);
+
+        tankGraphics.setColor(bodyColor.darker());
+        tankGraphics.drawRoundRect(-halfHull, -halfHull, hullSize, hullSize, cornerArc, cornerArc);
+
+        int turretSize = (int) Math.round(radius * 1.1);
+        int halfTurret = turretSize / 2;
+        tankGraphics.setColor(new Color(58, 58, 58));
+        tankGraphics.fillOval(-halfTurret, -halfTurret, turretSize, turretSize);
+
+        tankGraphics.setColor(new Color(28, 28, 28));
+        tankGraphics.setStroke(new BasicStroke(5.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int barrelStart = halfTurret - 1;
+        int barrelEnd = halfHull + 12;
+        tankGraphics.drawLine(barrelStart, 0, barrelEnd, 0);
+
+        tankGraphics.setColor(new Color(220, 220, 220, 160));
+        tankGraphics.fillOval(-halfTurret + 4, -halfTurret + 3, turretSize / 3, turretSize / 3);
+
+        tankGraphics.setTransform(oldTransform);
+        tankGraphics.dispose();
     }
 
     public double getRadius() {
